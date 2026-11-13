@@ -46,6 +46,7 @@ ARP와 DHCP는 인증 절차가 없습니다. 그래서 같은 LAN 안의 공격
 .
 ├── README.md        프로젝트 개요 (이 파일)
 ├── PROPOSAL.md      주제 제출문
+├── common/          공용 기록 형식 도구 (records.py: 만들기·쓰기·읽기·검사)
 ├── env/             실험 환경, 공격·정상 시나리오 스크립트      (P1)
 ├── capture/         패킷 캡처, 특징 추출                       (P2)
 ├── model/           AI 모델 학습·평가·추론                     (P3)
@@ -55,6 +56,9 @@ ARP와 DHCP는 인증 절차가 없습니다. 그래서 같은 LAN 안의 공격
 ├── eval/            비교 실험 스크립트, 결과                   (P5)
 └── docs/            모듈 간 데이터 형식, 회의록, 보고서
 ```
+
+모듈끼리 주고받는 데이터는 모두 [`docs/data-format.md`](docs/data-format.md) 형식을 따릅니다.
+파일을 넘기기 전에 `python common/records.py check <파일 또는 폴더>`로 검사합니다.
 
 ## 역할 분담
 
