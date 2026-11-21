@@ -91,6 +91,18 @@ class TestLabelRecord(unittest.TestCase):
         r = label.label_record(host(ATK, T + 22, win=5), [lab()], self.known)
         self.assertEqual((r["label"], r["ambiguous"]), ("arp_spoof", 0))
 
+    def test_attack_shorter_than_window(self):
+        # 0.3초 공격이 1초 창 [T+10, T+11] 안에 다 들어감 → 공격
+        short = [lab("port_scan", start=T + 10.2, end=T + 10.5)]
+        r = label.label_record(host(ATK, T + 11), short, self.known)
+        self.assertEqual((r["label"], r["overlap"]), ("port_scan", 1.0))
+        # 5초 창도 마찬가지
+        r = label.label_record(host(ATK, T + 14, win=5), short, self.known)
+        self.assertEqual(r["label"], "port_scan")
+        # 공격의 일부(0.1초/0.3초)만 걸친 창 → 경계
+        r = label.label_record(host(ATK, T + 10.3, win=1), short, self.known)
+        self.assertEqual((r["label"], r["ambiguous"]), ("normal", 1))
+
     def test_outside_is_normal(self):
         r = label.label_record(host(ATK, T + 30), [lab()], self.known)
         self.assertEqual((r["label"], r["overlap"]), ("normal", 0.0))

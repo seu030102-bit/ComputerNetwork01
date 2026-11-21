@@ -86,8 +86,14 @@ def known_macs(meta: dict) -> set[str]:
 # ---------------------------------------------------------------- 라벨 계산
 
 def _overlap(ts: float, win: int, lab: dict) -> float:
+    """겹친 비율. 분모는 창 길이와 공격 길이 중 짧은 쪽.
+
+    공격이 창보다 짧으면(예: nmap 스캔 0.3초) 창 길이로 나누면 절대 0.5를 넘지 못해
+    공격 행이 하나도 안 생깁니다. 그래서 공격이 창 안에 다 들어오면 1.0으로 봅니다.
+    """
     lo, hi = max(ts - win, lab["start_ts"]), min(ts, lab["end_ts"])
-    return max(0.0, hi - lo) / win
+    denom = max(min(win, lab["end_ts"] - lab["start_ts"]), 1e-6)
+    return min(1.0, max(0.0, hi - lo) / denom)
 
 
 def _applies_host(rec: dict, lab: dict, known: set[str]) -> bool:

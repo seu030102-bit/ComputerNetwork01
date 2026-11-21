@@ -5,7 +5,9 @@
 ## w11_lab.tar.gz (11주차, 2026-11-21 수집)
 
 - 공격 6종(arp_spoof, mac_flood, dhcp_starve, dhcp_rogue, port_scan, syn_flood) × 3회 + 정상 10분 × 3회 = 실험 21개
-- 라벨 검증 결과: [w11_verify.md](w11_verify.md) (실패 0, port_scan 3개는 경고: nmap 역방향 DNS 대기로 실제 스캔이 라벨보다 약 12초 늦게 시작)
+- 라벨 검증 결과: [w11_verify.md](w11_verify.md) (21개 전부 통과, 실패·경고 0)
+- port_scan은 nmap `-n` 반영 후 다시 수집했습니다(이전 3회는 역방향 DNS 대기로 라벨이 12초 어긋나 교체).
+  `-n` 이후 스캔이 0.3초 만에 끝나서 **port_scan 행은 실험당 1개(총 3개)** 뿐입니다. 학습용으로는 부족하니 공격 범위·속도 조정 후 추가 수집 예정.
 - 원본 `capture.pcap`(421MB)은 빠져 있습니다. 필요하면 P2에게 요청하세요.
 
 ### 풀기 (저장소 루트에서)
