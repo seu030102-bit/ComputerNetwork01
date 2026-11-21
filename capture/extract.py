@@ -103,6 +103,10 @@ def extract(run_dir: Path) -> None:
             t0 = ts
         eth = pkt[Ether]
         smac, dmac = eth.src.lower(), eth.dst.lower()
+        # 캡처 포트(mon0) 자신이 켜질 때 내보내는 IPv6 자동 설정 패킷은 실험 트래픽이 아님.
+        # 실험망은 IPv4 전용이므로 meta에 없는 MAC의 IPv6 패킷은 버림.
+        if eth.type == 0x86DD and smac not in mac2port:
+            continue
         size = len(pkt)
         seen_new = smac not in seen_src_macs
         seen_src_macs.add(smac)
