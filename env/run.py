@@ -36,6 +36,7 @@ from env.scenarios import Scenario, get                      # noqa: E402
 from env.topo import LanTopo                                 # noqa: E402
 
 HTTP_PORT = 8000
+DHCP_POOL = ("10.0.0.100", "10.0.0.150")
 
 
 def _child_env() -> str:
@@ -108,6 +109,18 @@ def configure_network(net, procs: list) -> None:
         shell=True))
     for h in by_role("client") + by_role("attacker"):
         net.get(h.name).cmd(f"ip route add default via {one('gateway').ip} || true")
+
+    # 진짜 DHCP 서버: dhcp 호스트에서 dnsmasq(DHCP 전용, DNS 끔)를 띄움.
+    # 풀(.100~.150)은 호스트 고정 IP(.1~.4, .253, .254)와 겹치지 않습니다.
+    # 11주차 가짜 DHCP·DHCP 고갈 공격의 대상이 됩니다.
+    dh = one("dhcp_server")
+    procs.append(net.get(dh.name).popen(
+        f"dnsmasq --no-daemon --port=0 --interface={dh.name}-eth0 --bind-interfaces "
+        f"--dhcp-range={DHCP_POOL[0]},{DHCP_POOL[1]},255.255.255.0,5m "
+        f"--dhcp-option=3,{one('gateway').ip} --dhcp-option=6,{one('gateway').ip} "
+        f"--dhcp-authoritative --pid-file=/tmp/dnsmasq-dhcp.pid "
+        f"--dhcp-leasefile=/tmp/dnsmasq-dhcp.leases",
+        shell=True))
 
 
 def write_meta(run_dir: Path, scn: Scenario, start_ts: float, end_ts: float) -> None:

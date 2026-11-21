@@ -10,14 +10,31 @@
   실행되지 않도록 `attacks/labguard.py`가 코드로 막습니다(Mininet 네임스페이스 + `LAB_OK=1` 확인).
 - Mininet 가상 MAC(`00:00:00:00:00:0X`)만 씁니다.
 
-## 필요 환경 (WSL2 Ubuntu 24.04 기준, 설치 완료)
+## 공용 환경 세팅 (팀원 전원 동일)
 
+모든 팀원이 **Ubuntu 24.04**에서 같은 패키지로 실험망을 돌립니다. 아래 둘 중 하나를 고르세요.
+
+**A. Windows: WSL2 (권장)** — PowerShell(관리자)에서
+```powershell
+wsl --install -d Ubuntu-24.04    # 설치 후 재부팅, 사용자 생성
 ```
-sudo apt install mininet openvswitch-switch python3-scapy \
-     dsniff hping3 nmap tcpdump iperf3 dnsmasq-base dnsutils
+**B. VM(VirtualBox/VMware 등):** Ubuntu 24.04 Desktop/Server ISO로 새 VM
+(CPU 2코어, 메모리 4GB, 디스크 20GB 이상).
+
+이후 Ubuntu 터미널에서 (A, B 공통):
+```bash
+sudo apt update
+sudo apt install -y git mininet openvswitch-switch python3-scapy python3-pip      dsniff hping3 nmap tcpdump iperf3 dnsmasq-base dnsutils wget
+sudo systemctl enable --now openvswitch-switch   # WSL에서 systemd가 없으면: sudo service openvswitch-switch start
+
+git clone https://github.com/seu030102-bit/ComputerNetwork01.git
+cd ComputerNetwork01          # 팀 저장소는 project/ 폴더 없이 루트에 env/, capture/ 등이 있음
+sudo python3 env/selfcheck.py                    # 환경 점검 (전부 [OK]여야 함)
 ```
-- Mininet은 Linux 전용입니다. Windows에서는 WSL2 또는 Ubuntu VM 안에서 실행합니다.
-- root 권한이 필요합니다(`sudo`).
+- Mininet은 Linux 전용입니다. root 권한이 필요합니다(`sudo`).
+- `selfcheck.py`가 확인하는 것: 필수 프로그램, scapy, ping, DNS, **DHCP 서버 OFFER**.
+  `[FAIL]`이 나오면 그 줄의 안내대로 패키지를 설치하세요.
+- Windows 드라이브(`/mnt/c/...`)에 저장소를 두면 느립니다. 가능하면 `~/` 아래에 clone 하세요.
 
 ## 실행
 
@@ -26,6 +43,12 @@ sudo apt install mininet openvswitch-switch python3-scapy \
 sudo python3 env/run.py arp_spoof          # ARP 스푸핑 시나리오
 sudo python3 env/run.py mac_flood          # MAC 플러딩
 sudo python3 env/run.py arp_spoof_slow     # 느린 ARP 스푸핑(회피 공격)
+sudo python3 env/run.py dhcp_starve        # DHCP 고갈 (w11)
+sudo python3 env/run.py dhcp_rogue         # 가짜 DHCP 서버 (w11)
+sudo python3 env/run.py port_scan          # nmap 포트 스캔 (w11)
+sudo python3 env/run.py port_scan_slow     # 느린 포트 스캔(회피) (w11)
+sudo python3 env/run.py syn_flood          # SYN flood (w11)
+sudo python3 env/run.py syn_flood_slow     # 저속 SYN flood(회피) (w11)
 sudo python3 env/run.py arp_spoof --no-pcap        # 캡처 생략(빠름)
 sudo python3 env/run.py arp_spoof --controller remote  # OS-Ken 붙일 때(P4)
 
@@ -42,10 +65,15 @@ python3 common/records.py check data/runs/<run_id>
 | `hosts.py` | **호스트 정의(단일 기준).** MAC·IP·포트를 여기만 고치면 토폴로지와 meta.json에 함께 반영됨 |
 | `topo.py` | Mininet 토폴로지(스위치 1대 + 호스트 6대) |
 | `scenarios.py` | 시나리오 정의(공격자, 대상, 속도, 회피 여부 → label에 반영) |
-| `run.py` | 실험 실행기: 망 구성 → meta.json → 캡처 → 정상 트래픽 → 공격 → labels.jsonl |
-| `traffic/normal.py` | 정상 트래픽(ping, HTTP, DNS) |
+| `run.py` | 실험 실행기: 망 구성(DNS·DHCP 서버 포함) → meta.json → 캡처 → 정상 트래픽 → 공격 → labels.jsonl |
+| `selfcheck.py` | 환경 점검(프로그램, ping, DNS, DHCP). 새로 세팅한 뒤 한 번 실행 |
+| `traffic/normal.py` | 정상 트래픽(ping, web, DNS, video-UDP, file-TCP) |
 | `attacks/arp_spoof.py` | ARP 스푸핑 (w07) |
 | `attacks/mac_flood.py` | MAC 플러딩 (w07) |
+| `attacks/dhcp_exhaust.py` | DHCP 고갈 (`dhcp_starve`, w11) |
+| `attacks/dhcp_rogue.py` | 가짜 DHCP 서버 (w11) |
+| `attacks/port_scan.py` | nmap/scapy 포트 스캔 (w11) |
+| `attacks/syn_flood.py` | SYN flood (w11) |
 | `attacks/labguard.py` | 격리 환경 안전장치 |
 
 ## 토폴로지
@@ -60,11 +88,31 @@ python3 common/records.py check data/runs/<run_id>
 
 ## 검증 상태 (2026-11-13, WSL2에서 실제 실행)
 
+- ✅ (2026-11-17) **DHCP 서버**: `dhcp` 호스트에서 dnsmasq가 풀 `10.0.0.100~150`을 제공, gw를 기본 경로·DNS로 안내. `selfcheck.py`에서 OFFER 확인.
+  호스트 고정 IP(.1~.4, .253, .254)와 풀이 겹치지 않음. 11주차 가짜 DHCP·DHCP 고갈 공격 대상.
+
 - ✅ 6호스트 토폴로지가 run.py로 정상 구성됨(정상 트래픽 ping·HTTP 상호 통신 확인)
 - ✅ `arp_spoof`: 캡처에 공격자(`...04`)와 게이트웨이(`...fe`)가 둘 다 `10.0.0.254`를
   주장하는 ARP 충돌이 찍힘 → 규칙 탐지기의 핵심 근거. meta/labels 형식 검사 통과
 - ✅ `mac_flood`: 짧은 시간에 서로 다른 출발지 MAC 171개 관측 → `feat_seg` 신호
 - ✅ 안전장치: Mininet 밖에서 공격 스크립트 직접 실행 시 거부(종료코드 3)
+
+### w11 추가 (2026-11-17, WSL2에서 실제 실행)
+
+- ✅ `dhcp_starve`: DHCPDISCOVER 전송 확인(캡처에 2,100개 — 스위치 브로드캐스트 플러딩으로
+  한 전송당 여러 사본이 찍힘). `attack` 값은 data-format.md 기준 `dhcp_starve`
+  (모듈 파일명은 `attacks/dhcp_exhaust.py`).
+- ✅ `dhcp_rogue`: 처음엔 캡처에 DHCP 패킷이 0개였음 — 이 실습망 호스트는 정적 IP라
+  실제 DHCPDISCOVER가 발생하지 않아 "스니핑 후 응답"만으로는 공격이 보이지 않았음.
+  주기적 불특정 OFFER 브로드캐스트를 추가해 해결(수정 후 30개 OFFER, 출처 `10.0.0.4` 확인).
+- ✅ `port_scan` / `port_scan_slow`: nmap SYN 스캔 정상 실행, labels 형식 검사 통과.
+  `-T4`(기본)는 응답 없는 포트 재시도로 다소 오래 걸림 — 실제 소요는 `attack_dur`보다 짧게
+  끝날 수 있음(스캔이 먼저 끝나면 조기 종료).
+- ✅ `syn_flood` / `syn_flood_slow`: 가짜 출발지 IP로 SYN 전송, labels 형식 검사 통과.
+- 🐛 **발견 및 수정**: 정상 트래픽에 `video`/`file`(iperf3) 종류를 추가했을 때, iperf3 TCP를
+  대역폭 제한(`-b`) 없이 돌리자 Mininet 가상 링크에 대역폭 제한이 없어 45초 실행의
+  캡처가 **약 5GB**로 폭주함. `-b 5M`(파일)/`-b 1M`(영상, UDP)로 제한해 9MB대로 정상화.
+  **새 트래픽 종류를 추가할 때는 항상 속도 제한을 걸 것.**
 
 ## 알려진 한계 (다음 주 보완)
 

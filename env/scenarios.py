@@ -56,6 +56,53 @@ SCENARIOS: dict[str, Scenario] = {
         args=["--rate", "500"], attack_dur=20.0,
         params={"tool": "scapy", "rate_fps": 500},
     ),
+    # DHCP 고갈: h4가 가짜 MAC으로 DISCOVER를 대량 전송해 dhcp 서버의 풀을 소진
+    # (모듈 파일명은 dhcp_exhaust, data-format.md의 attack 값은 dhcp_starve)
+    "dhcp_starve": Scenario(
+        name="dhcp_starve", attack="dhcp_starve", attacker="h4", target="dhcp",
+        module="env.attacks.dhcp_exhaust",
+        args=["--rate", "20"], attack_dur=30.0,
+        params={"tool": "scapy", "rate_pps": 20},
+    ),
+    # 가짜 DHCP 서버: h4가 정상 서버(dhcp)를 사칭해 OFFER/ACK로 자신을 게이트웨이로 안내
+    "dhcp_rogue": Scenario(
+        name="dhcp_rogue", attack="dhcp_rogue", attacker="h4", target="h1",
+        module="env.attacks.dhcp_rogue",
+        args=["--server-ip", "10.0.0.4", "--offer-ip", "10.0.0.200"],
+        attack_dur=30.0,
+        params={"tool": "scapy", "spoofed_server_ip": "10.0.0.4", "offer_ip": "10.0.0.200"},
+    ),
+    # nmap 포트 스캔: h4가 h1의 1~1000번 포트를 SYN 스캔
+    "port_scan": Scenario(
+        name="port_scan", attack="port_scan", attacker="h4", target="h1",
+        module="env.attacks.port_scan",
+        args=["--target-ip", "10.0.0.1", "--ports", "1-1000"], attack_dur=30.0,
+        params={"tool": "nmap", "ports": "1-1000"},
+    ),
+    # 느린 포트 스캔(회피): -T1 타이밍, 포트 순서 섞음
+    "port_scan_slow": Scenario(
+        name="port_scan_slow", attack="port_scan", attacker="h4", target="h1",
+        module="env.attacks.port_scan",
+        args=["--target-ip", "10.0.0.1", "--ports", "1-200", "--evasive"],
+        evasive=True, attack_dur=60.0,
+        params={"tool": "nmap", "ports": "1-200", "evasion": "slow-timing"},
+    ),
+    # SYN flood: h4가 가짜 출발지 IP로 h1의 80포트에 SYN을 대량 전송
+    "syn_flood": Scenario(
+        name="syn_flood", attack="syn_flood", attacker="h4", target="h1",
+        module="env.attacks.syn_flood",
+        args=["--target-ip", "10.0.0.1", "--target-port", "80", "--rate", "200"],
+        attack_dur=20.0,
+        params={"tool": "scapy", "rate_pps": 200, "target_port": 80},
+    ),
+    # 저속 SYN flood(회피): 초당 5개로 아주 천천히
+    "syn_flood_slow": Scenario(
+        name="syn_flood_slow", attack="syn_flood", attacker="h4", target="h1",
+        module="env.attacks.syn_flood",
+        args=["--target-ip", "10.0.0.1", "--target-port", "80", "--rate", "5"],
+        evasive=True, attack_dur=60.0,
+        params={"tool": "scapy", "rate_pps": 5, "target_port": 80, "evasion": "low-rate"},
+    ),
 }
 
 
