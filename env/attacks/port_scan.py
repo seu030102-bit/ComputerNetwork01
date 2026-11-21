@@ -25,7 +25,7 @@ from env.attacks.labguard import require_lab
 
 def run_nmap(target_ip: str, ports: str, duration: float, evasive: bool) -> None:
     timing = ["-T1"] if evasive else ["-T4"]
-    cmd = ["nmap", "-sS", "-Pn", "-p", ports, *timing, target_ip]
+    cmd = ["nmap", "-sS", "-Pn", "-n", "-p", ports, *timing, target_ip]
     print(f"[port_scan] 실행: {' '.join(cmd)}")
     try:
         subprocess.run(cmd, timeout=duration, stdout=subprocess.DEVNULL,
