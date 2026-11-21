@@ -258,10 +258,11 @@ def main() -> int:
           f"{(time.time() - t_batch) / 60:.1f}분 걸림")
     # 전체 data/runs 기준으로 검증·데이터셋 갱신 (이전 배치도 함께 셈)
     env = {**os.environ, "PYTHONPATH": str(ROOT)}
-    subprocess.run([PY, str(ROOT / "capture" / "verify.py"), "--all",
+    subprocess.run([PY, str(ROOT / "capture" / "verify.py"), "--all", "--runs-dir", str(outdir),
                     "--min-reps", str(a.repeat), "--normal-min", str(a.normal_min)],
                    cwd=ROOT, env=env)
-    subprocess.run([PY, str(ROOT / "capture" / "label.py"), "--all"], cwd=ROOT, env=env)
+    subprocess.run([PY, str(ROOT / "capture" / "label.py"), "--all", "--runs-dir", str(outdir)],
+                   cwd=ROOT, env=env)
     _give_back_to_user([ROOT / "data" / "dataset"])
     return 1 if failed else 0
 

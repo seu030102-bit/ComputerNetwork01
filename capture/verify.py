@@ -292,14 +292,16 @@ def main() -> int:
         sys.stdout.reconfigure(encoding="utf-8")
     p = argparse.ArgumentParser(description="라벨 검증 + 수집량 점검 (P2)")
     p.add_argument("runs", nargs="*", help="실험 폴더들")
-    p.add_argument("--all", action="store_true", help="data/runs 전체")
+    p.add_argument("--all", action="store_true", help="--runs-dir 안의 실험 전체")
+    p.add_argument("--runs-dir", default=str(ROOT / "data" / "runs"),
+                   help="--all 이 볼 폴더 (기본 data/runs)")
     p.add_argument("--min-reps", type=int, default=3, help="공격별 최소 반복 횟수")
     p.add_argument("--normal-min", type=float, default=30, help="정상 최소 시간(분)")
     p.add_argument("--out", default=str(ROOT / "data" / "dataset" / "verify.md"))
     a = p.parse_args()
     run_dirs = [Path(r) for r in a.runs]
     if a.all:
-        run_dirs += find_runs(ROOT / "data" / "runs")
+        run_dirs += find_runs(Path(a.runs_dir))
     if not run_dirs:
         p.error("실험 폴더를 주거나 --all 을 쓰세요")
 
