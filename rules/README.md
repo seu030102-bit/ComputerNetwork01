@@ -6,35 +6,44 @@
 ## 사용
 
 ```bash
+# w11 데이터 (저장소 루트)
+tar xzf datasets/w11_lab.tar.gz
 python3 rules/detect.py data/runs/<run_id>
-# → alerts_rule.jsonl 생성
+# → alerts_rule.jsonl
+python3 eval/evaluate.py --all
 ```
 
-## 규칙 (10주차, 2종)
+## 규칙 (11주차, 6종)
 
 | 규칙 | 조건 | 판정 |
 |---|---|---|
-| `arp_conflict` | `feat_host.arp_ip_conflicts > 0` | ARP 스푸핑 (학습된 대응표와 다른 MAC이 IP 주장) |
-| `arp_unsolicited` | `feat_host.arp_rep_unsolicited ≥ 5` (5초창) | ARP 스푸핑 (R1이 못 잡는 느린 경우 보강) |
-| `mac_flood` | `feat_seg.new_src_macs ≥ 15` (1초창) | MAC 플러딩 |
+| `arp_conflict` | `feat_host.arp_ip_conflicts > 0` | ARP 스푸핑 |
+| `arp_unsolicited` | `arp_rep_unsolicited ≥ 5` (5초창) | ARP 스푸핑 |
+| `mac_flood` | `new_src_macs ≥ 15` (1초창), DHCP 신호 없을 때 | MAC 플러딩 |
+| `dhcp_rogue` | 정상 `meta.dhcp_servers` 밖 MAC이 `dhcp_offer`/`dhcp_ack` | 가짜 DHCP |
+| `dhcp_starve` | `dhcp_discover ≥ 15` 또는 `dhcp_chaddrs ≥ 5` (1초창) | DHCP 고갈 |
+| `port_scan` | `dst_ports ≥ 40` 이고 `tcp_syn ≥ 15` | 포트 스캔 |
+| `syn_flood` | `tcp_syn ≥ 25` 이고 `dst_ports ≤ 5` | SYN flood |
 
-- 임계치는 `detect.py` 상단 상수. 실험망 정상 호스트가 6대뿐이라 15를 기준으로 삼음.
-- 같은 (공격자, 공격)은 10초에 한 번만 경보(data-format 2.4).
-- 11주차에 가짜 DHCP·DHCP 고갈·포트 스캔·SYN flood 규칙 추가 예정.
+- 임계치는 `detect.py` 상단 상수. w11_lab(정상 32분) 대비 잡음.
+- 같은 (공격자, 공격)은 10초에 한 번만 경보.
+- `dhcp_starve`를 `mac_flood`보다 먼저 판정(가짜 MAC+DISCOVER가 겹침).
 
-## 검증 상태 (2026-11-13, 전체 파이프라인 실제 실행)
+## 검증 (w11_lab, 2026-11-22)
 
-pcap → extract → detect → 라벨 대비 평가:
+| 공격 | 탐지 | 정상구간 오탐 | 공격자 특정 |
+|---|---|---|---|
+| arp_spoof (×3) | 1/1 | 0 | O |
+| mac_flood (×3) | 1/1 | 0 | X (가짜 MAC) |
+| dhcp_rogue (×3) | 1/1 | 0 | O |
+| dhcp_starve (×3) | 1/1 | 0 | X (가짜 chaddr) |
+| port_scan (×3) | 1/1 | 0 | O |
+| syn_flood (×3) | 1/1 | 0 | O |
+| normal (×3) | — | 0 | — |
 
-| 시나리오 | 탐지 | 경보 | 탐지시간 | 공격자 일치 | 정상구간 오탐 |
-|---|---|---|---|---|---|
-| arp_spoof | ✅ | 2건 | 1.56초 | ✅ (`…04`) | 0 |
-| mac_flood | ✅ | 2건 | 1.3초 | — (아래 한계) | 0 |
+→ **11주차 완료 기준 충족**: 캡처 폴더로 규칙 탐지·평가 가능.
 
-→ **10주차 완료 기준 충족**: ARP 스푸핑 캡처를 넣으면 규칙 탐지기가 경보를 냄.
+## 다음 (12주차)
 
-## 한계
-
-- **MAC 플러딩 경보의 공격자 MAC이 null.** 오프라인 pcap에 입력 포트가 없고 출발지 MAC이
-  매번 가짜라, 공격자를 특정할 수 없음. SDN 자동 차단(공격자 포트 차단)에는 **실시간 포트별
-  캡처(12주차)**가 필요함. 탐지(경보 발생) 자체는 정상 동작.
+- 경보 → SDN drop 차단 (`sdn/`)
+- ★ 사전 차단은 13주차
