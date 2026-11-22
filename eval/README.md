@@ -3,13 +3,50 @@
 실험 폴더의 `labels / alerts / actions / features`를 읽어
 [`../docs/data-format.md`](../docs/data-format.md) 4장 정의대로 성능표를 자동 계산합니다.
 
-## 사용
+## 스크립트
+
+| 파일 | 역할 |
+|------|------|
+| `evaluate.py` | 실험 폴더(들) 평가 → 터미널/MD 테이블 출력 |
+| `report.py`   | 주차별 보고서 생성 → PNG 3개 + summary.md + report.html |
+
+---
+
+## evaluate.py — 빠른 평가
 
 ```bash
 python3 eval/evaluate.py data/runs/<run_id> [...]       # 특정 실험
 python3 eval/evaluate.py --all                           # data/runs 전체
 python3 eval/evaluate.py --all --out eval/results/summary.md
 ```
+
+---
+
+## report.py — 주차별 보고서
+
+```bash
+# w11 실험 전체 보고서 생성
+python3 eval/report.py data/runs/*/ --week w11
+
+# 출력 폴더를 직접 지정할 때
+python3 eval/report.py data/runs/*/ --week w11 --out eval/results/w11
+```
+
+### 출력 파일 (`eval/results/w11/`)
+
+| 파일 | 내용 |
+|------|------|
+| `summary.md`       | 공격별 탐지율 · 탐지 시간 · 정상 구간 오탐 표 |
+| `detect_rate.png`  | 공격별 탐지율 막대 차트 (탐지기별 색상) |
+| `detect_time.png`  | 공격별 평균 탐지 시간 막대 차트 |
+| `false_pos.png`    | 정상 구간 오탐 막대 차트 |
+| `report.html`      | 실험 카드 보고서 (PNG base64 삽입, CDN 없음) |
+
+### 탐지기 자동 확장
+
+현재 `alerts_rule.jsonl`만 있으면 **rule** 막대만 그려집니다.
+나중에 `alerts_ai.jsonl`이 추가되면 **ai** 막대가 자동으로 추가됩니다.
+(`alerts.jsonl`, `alerts_rule.jsonl`, `alerts_ai.jsonl` 중 존재하는 파일을 모두 읽습니다.)
 
 여러 탐지기의 경보 파일을 모두 읽어 `detector`별(규칙/AI/혼합)로 나눠 집계합니다
 (`alerts.jsonl`, `alerts_rule.jsonl`, `alerts_ai.jsonl` 중 있는 것).
