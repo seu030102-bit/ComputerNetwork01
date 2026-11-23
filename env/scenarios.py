@@ -103,6 +103,17 @@ SCENARIOS: dict[str, Scenario] = {
         evasive=True, attack_dur=60.0,
         params={"tool": "scapy", "rate_pps": 5, "target_port": 80, "evasion": "low-rate"},
     ),
+    # 정상 트래픽에 섞은 공격(회피): h4가 보통 클라이언트처럼 웹/DNS/동영상/파일
+    # 트래픽을 보내면서 그 사이에 느린 port_scan을 끼워 넣음
+    "mixed_attack": Scenario(
+        name="mixed_attack", attack="port_scan", attacker="h4", target="h1",
+        module="env.attacks.mixed_attack",
+        args=["--target-ip", "10.0.0.1", "--http-port", "8000",
+              "--base", "port_scan", "--seed", "7"],
+        evasive=True, attack_dur=60.0,
+        params={"tool": "scapy", "base": "port_scan", "ports": "1-200",
+                "evasion": "blended-with-normal"},
+    ),
 }
 
 
