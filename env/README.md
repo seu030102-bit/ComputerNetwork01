@@ -49,6 +49,7 @@ sudo python3 env/run.py port_scan          # nmap 포트 스캔 (w11)
 sudo python3 env/run.py port_scan_slow     # 느린 포트 스캔(회피) (w11)
 sudo python3 env/run.py syn_flood          # SYN flood (w11)
 sudo python3 env/run.py syn_flood_slow     # 저속 SYN flood(회피) (w11)
+sudo python3 env/run.py mixed_attack       # 정상 트래픽에 섞은 공격(회피) (w12)
 sudo python3 env/run.py arp_spoof --no-pcap        # 캡처 생략(빠름)
 sudo python3 env/run.py arp_spoof --controller remote  # OS-Ken 붙일 때(P4)
 
@@ -57,6 +58,28 @@ python3 common/records.py check data/runs/<run_id>
 ```
 
 각 실험은 `워밍업 → 공격 → 쿨다운` 순서로 진행합니다(시간은 `scenarios.py`에서 조정).
+
+## 데모·통합 테스트 (w12)
+
+공격 재현부터 평가까지 한 번에 돌리는 스크립트를 저장소 루트에 뒀습니다
+(`run.py`가 아니라 **repo 루트**에서 실행합니다).
+
+```bash
+# 저장소 루트(ComputerNetwork01)에서
+sudo ./run_demo.sh arp_spoof                    # 실험→캡처→추출→규칙탐지→평가→형식검사
+sudo ./run_demo.sh mixed_attack                 # 회피 시나리오도 동일하게
+sudo ./run_demo.sh arp_spoof --controller=remote  # OS-Ken 자동 기동 후 실행 (osken-manager 필요)
+sudo ./run_demo.sh mac_flood --no-model --quiet   # AI 추론 생략, 진행 메시지 생략
+
+sudo ./integration_test.sh                      # 빠른 확인(arp_spoof, arp_spoof_slow)
+sudo ./integration_test.sh --all                 # 전체 10개 시나리오
+sudo ./integration_test.sh port_scan syn_flood   # 지정한 시나리오만
+```
+
+- `run_demo.sh`는 `model/rf.joblib`·`eval/report.py`가 있으면 자동으로 쓰고, 없으면 건너뜁니다
+  (P3/P5 모듈이 아직 머지되지 않아도 그대로 동작).
+- `integration_test.sh`는 파이프라인이 오류 없이 끝까지 돌고 기록 형식이 맞는지만 봅니다.
+  회피 시나리오가 탐지되지 않는 것은 실패가 아닙니다(13주차 규칙 vs AI 비교의 연구 대상).
 
 ## 구성 파일
 
@@ -74,7 +97,10 @@ python3 common/records.py check data/runs/<run_id>
 | `attacks/dhcp_rogue.py` | 가짜 DHCP 서버 (w11) |
 | `attacks/port_scan.py` | nmap/scapy 포트 스캔 (w11) |
 | `attacks/syn_flood.py` | SYN flood (w11) |
+| `attacks/mixed_attack.py` | 정상 트래픽에 섞은 공격(회피, w12) — 배경 트래픽 뒤에 다른 공격을 숨김 |
 | `attacks/labguard.py` | 격리 환경 안전장치 |
+| `../run_demo.sh` | 데모 실행기(w12): 실험→캡처→추출→탐지→평가→형식검사를 한 번에 |
+| `../integration_test.sh` | 통합 테스트(w12): 여러 시나리오로 `run_demo.sh`를 돌려 파이프라인 확인 |
 
 ## 토폴로지
 
@@ -113,6 +139,19 @@ python3 common/records.py check data/runs/<run_id>
   대역폭 제한(`-b`) 없이 돌리자 Mininet 가상 링크에 대역폭 제한이 없어 45초 실행의
   캡처가 **약 5GB**로 폭주함. `-b 5M`(파일)/`-b 1M`(영상, UDP)로 제한해 9MB대로 정상화.
   **새 트래픽 종류를 추가할 때는 항상 속도 제한을 걸 것.**
+
+### w12 추가 (2026-11-23, WSL2에서 실제 실행)
+
+- ✅ `mixed_attack`: 공격자(h4)가 배경 트래픽(web/dns/video/file)을 보내는 동시에 느린
+  `port_scan`을 끼워 넣음. labels/features 형식 검사 통과. 규칙 탐지기는 예상대로
+  이 공격을 놓침(0/1) — 느린 단독 공격(`*_slow`)은 그래도 잡힘(예: `arp_spoof_slow` 6경보).
+  13주차 규칙 vs AI 비교 자료로 쓸 것.
+- ✅ `run_demo.sh`: `mac_flood`, `mixed_attack`으로 전체 파이프라인(실험→캡처→추출→
+  규칙탐지→평가→형식검사) 끝까지 확인. `model/rf.joblib`·`eval/report.py`가 없을 때
+  건너뛰는 분기도 확인.
+- ✅ `integration_test.sh`: `mac_flood`+`arp_spoof_slow` 2개 시나리오로 통과 2/실패 0 확인.
+- SDN 차단(P4)·대시보드 실시간 연결(P5)은 아직 main에 없어 `run_demo.sh`가 직접 확인하지
+  못함. 두 모듈이 올라오면 `--controller=remote` 경로와 대시보드 안내를 그대로 이어 쓸 수 있음.
 
 ## 알려진 한계 (다음 주 보완)
 
