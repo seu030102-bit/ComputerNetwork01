@@ -39,6 +39,13 @@ def infer(run_dir: Path, threshold: float, model_path: Path) -> None:
     if not recs:
         sys.exit(f"feat_host 기록 없음: {run_dir}")
 
+    # meta에 없는 MAC = 플러딩용 가짜 MAC. 그 MAC을 공격자로 적으면 eval이 '공격자 오지정'
+    # (FP)으로 세므로, 규칙 탐지기처럼 공격자 미지정(mac=null)으로 경보합니다.
+    known = None
+    if (run_dir / "meta.json").exists():
+        from capture.label import known_macs, load_meta
+        known = known_macs(load_meta(run_dir))
+
     X = np.array([[float(r.get(k, 0) or 0) for k in feats] for r in recs], dtype=float)
     proba = clf.predict_proba(X)
     cls_idx = {c: i for i, c in enumerate(classes)}
@@ -57,8 +64,10 @@ def infer(run_dir: Path, threshold: float, model_path: Path) -> None:
             if best is None or best_p < threshold:
                 continue
             host = r["host"]
+            if known is not None and host["mac"] not in known:
+                host = {**host, "mac": None, "ip": None}
             key = (best, host["mac"])
-            if host["mac"] and last.get(key, -1e9) > r["ts"] - DEDUP_SEC:
+            if last.get(key, -1e9) > r["ts"] - DEDUP_SEC:
                 continue
             last[key] = r["ts"]
             seq += 1
@@ -68,7 +77,8 @@ def infer(run_dir: Path, threshold: float, model_path: Path) -> None:
                            detector="ai", source="rf-v1", attack=best,
                            score=round(float(best_p), 4), attacker=host, victim=None,
                            feature_ts=r["ts"], win=r["win"],
-                           summary=f"AI: {host['mac']}의 트래픽이 {best}와 유사 ({best_p:.0%})",
+                           summary=f"AI: {host['mac'] or '가짜 MAC'}의 트래픽이 "
+                                   f"{best}와 유사 ({best_p:.0%})",
                            evidence={"proba": round(float(best_p), 4),
                                      "top_features": top}))
             n += 1
