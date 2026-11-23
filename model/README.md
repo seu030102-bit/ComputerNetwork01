@@ -71,7 +71,37 @@ test에 실험망과 Kitsune가 함께 있으면 출처별 성능표도 따로 �
 
 ### 실험망 (`--tag lab`: 실험 14개로 학습, 시나리오별 마지막 실험 7개로 평가)
 
-학습 10,026행 / 평가 5,008행. 성능표상 모든 클래스의 정밀도·재현율 0.96~1.00.
+학습 10,026행 / 평가 5,008행. 아래 수치는 `python3 model/train.py --all --exclude-run kitsune --tag lab`로
+다시 만들 수 있습니다(`model/metrics_lab.json`).
+
+**혼동행렬** (행 단위, 행 = 정답, 열 = 예측, 대각선 = 맞힘)
+
+| 정답 \ 예측 | arp_spoof | dhcp_rogue | dhcp_starve | mac_flood | normal | port_scan | syn_flood |
+|---|---|---|---|---|---|---|---|
+| arp_spoof | **35** | 0 | 0 | 0 | 0 | 0 | 0 |
+| dhcp_rogue | 0 | **17** | 0 | 0 | 0 | 0 | 0 |
+| dhcp_starve | 0 | 0 | **564** | 0 | 0 | 0 | 0 |
+| mac_flood | 0 | 0 | 0 | **680** | 4 | 0 | 0 |
+| normal | 0 | 0 | 0 | 0 | **3,682** | 0 | 0 |
+| port_scan | 0 | 0 | 0 | 0 | 0 | **2** | 0 |
+| syn_flood | 0 | 0 | 0 | 0 | 1 | 0 | **23** |
+
+**클래스별 탐지율(재현율)·정밀도**
+
+| 클래스 | 평가 행 | 탐지율 (맞힌 공격 / 실제 공격) | 정밀도 (맞은 판정 / 그 클래스로 판정) |
+|---|---|---|---|
+| arp_spoof | 35 | 1.000 (35/35) | 1.000 |
+| dhcp_rogue | 17 | 1.000 (17/17) | 1.000 |
+| dhcp_starve | 564 | 1.000 (564/564) | 1.000 |
+| mac_flood | 684 | 0.994 (680/684) | 1.000 |
+| port_scan | 2 | 1.000 (2/2) | 1.000 |
+| syn_flood | 24 | 0.958 (23/24) | 1.000 |
+| normal | 3,682 | – | 0.999 (공격 5행을 정상으로 놓침) |
+
+**오탐율** (정상을 공격으로 판정한 비율)
+
+- 행 단위: 정상 3,682행 중 0행 → **0.0%**
+- 경보 단위(아래 표): 정상 전용 실험 10분 동안 AI 경보 0개, 공격 실험들의 정상 구간에서도 0개
 
 `eval/evaluate.py` 결과(경보 단위):
 
@@ -100,11 +130,28 @@ Kitsune의 패킷 라벨은 실제 공격과 어긋나서, 공격 구간은 pcap
 | OS Scan | `20170807-…-port_scan` | 같은 공격자가 게이트웨이 포트 65,535개를 24.5초에 스캔 + OS 탐지 프로브 0.7초 | 11,359 (32) |
 | SYN DoS | `20170225-…-normal` | **공격 SYN이 캡처에 없음**(피해자 SYN-ACK만 있음) → 공격 전 51분을 정상 데이터로 | 19,774 (0) |
 
-실험망으로만 학습한 모델(`lab`)로 평가:
+실험망으로만 학습한 모델로 Kitsune 3개 실험만 평가(`--test-run kitsune --tag lab2kit`,
+`metrics_lab2kit.json`의 `report_by_source.kitsune`):
+
+**혼동행렬** (Kitsune 35,819행, 학습한 7개 클래스 중 나온 것만)
+
+| 정답 \ 예측 | arp_spoof | mac_flood | normal | port_scan |
+|---|---|---|---|---|
+| arp_spoof | **54** | 0 | 61 | 0 |
+| normal | 0 | 66 | **35,606** | 0 |
+| port_scan | 0 | 0 | 2 | **30** |
+
+| 클래스 | 평가 행 | 탐지율 | 정밀도 |
+|---|---|---|---|
+| arp_spoof | 115 | **0.470** (54/115) | 1.000 |
+| port_scan | 32 | **0.938** (30/32) | 1.000 |
+| normal | 35,672 | – | 0.998 |
+
+- 행 단위 오탐율: 정상 35,672행 중 66행(전부 mac_flood로 판정) → **0.19%**
+- 경보 단위: 같은 호스트의 연속 창은 10초에 한 번만 경보하므로 66행 → 경보 25개
 
 | 평가 | 결과 |
 |---|---|
-| 행 단위 (`lab2kit`) | arp_spoof 재현율 **0.47**, port_scan 재현율 **0.94**, 둘 다 정밀도 1.00 |
 | 경보: ARP MitM | AI 탐지시간 **46.6초**, 규칙 448.6초(마지막 사칭에서야 충돌 감지) |
 | 경보: OS Scan | AI가 포트 스캔은 탐지(0.66초), OS 탐지 프로브(SYN 9개)는 놓침 → 1/2 |
 | 경보: 실제 망 정상 51분 | **AI 오탐 25개**, 규칙 0개 |
@@ -119,6 +166,71 @@ Kitsune의 패킷 라벨은 실제 공격과 어긋나서, 공격 구간은 pcap
   규칙보다 빠른 이점이 사라집니다(실험망 7종 탐지는 그대로). 14주차 임계치 조정 과제로 둡니다.
 - 실험망+Kitsune로 학습(`labkit`)해도 실험망 test 결과는 같습니다. 이 모델로 Kitsune를
   평가하면 학습에 쓴 데이터라 점수가 의미 없습니다(ARP 탐지 0.61초, 오탐 0은 참고용).
+
+## 팀원 공유 사항 (P3 작업 중 알게 된 것)
+
+모듈 담당자별로 알아 두면 좋은 내용입니다. 코드는 P3 폴더(`model/`)만 고쳤습니다.
+
+### 전체
+
+- **Kitsune 115개 특징 CSV는 쓰지 않기로 했습니다(A안 폐기, B안 채택).**
+  CSV는 "패킷 1개 = 1행, AfterImage 115개 특징"이라 우리 `feat_host`(창 × 호스트, 20개)와 형식이
+  다릅니다. ARP MitM CSV로 직접 학습해 보니 공격 "시기"를 외워 정상 재현율이 0.23에 그쳤습니다.
+  그래서 pcap을 우리 `capture/extract.py`로 다시 처리했습니다. 이 때문에 README 10주차의
+  "Kitsune 특징 추출기(AfterImage)와 특징을 맞춤"(P2) 작업은 **필요 없어졌습니다.**
+- **Kitsune 9종 중 쓸 수 있는 것은 3종**(ARP MitM, OS Scan, SYN DoS)입니다. 나머지
+  (Active Wiretap, SSDP Flood, SSL Renegotiation, Fuzzing, Video Injection, Mirai)는
+  우리 탐지 대상이 아닙니다. MAC 플러딩·DHCP·DNS 공격은 Kitsune에 없어 실험망 데이터로만 학습합니다.
+- **Kitsune의 패킷 라벨은 믿기 어렵습니다.** ARP MitM은 공격자가 나타나기 57초 전부터 '공격'이고
+  위조 ARP 46개에는 '정상'이 붙어 있습니다. SYN DoS는 공격 SYN이 캡처에 없고 피해자 응답에
+  라벨이 붙어 있습니다. Kitsune 수치를 인용할 때는 원본 라벨이 아닌 위 결과를 쓰세요.
+
+### P2 (capture/)
+
+- **Kitsune pcap은 패킷당 200바이트만 저장**되어 있어 `extract.py`의 `len(pkt)`로 센 `bytes`가
+  작습니다. `pkt.wirelen`을 쓰면 해결됩니다(실험망 캡처는 값이 같음). 아래 "한계" 참고.
+- **`label.py` 규칙은 흔적 없는 공격 창도 공격으로 라벨합니다.** 공격 구간과 겹치기만 하면
+  배경 패킷 3개(210바이트)만 있는 창도 dhcp_rogue·dhcp_starve가 됩니다(11주차 데이터 14행,
+  Kitsune ARP 46행). 이 행 때문에 AI가 정상 실험에서 오탐 15개를 냈습니다. P3는 라벨은 그대로 두고
+  학습에서만 뺍니다(`dataset.EVIDENCE`). `host_*.csv`를 쓰는 다른 사람도 주의하세요.
+- 예전 `model/dataset.py`는 자체 규칙이라 P2 CSV와 라벨이 달랐습니다(5초 창 port_scan 0개 등).
+  지금은 `label.py`를 그대로 호출하므로 P2가 규칙을 고치면 자동으로 따라갑니다.
+
+### P4 (rules/)
+
+- 11주차 test 실험 7개에 `rules/detect.py`를 돌렸을 때 **dhcp_starve, dhcp_rogue, syn_flood,
+  port_scan 실험에서 규칙 경보가 0개**였습니다(arp_spoof, mac_flood는 탐지). 11주차 규칙이
+  아직 반영 전인지 확인이 필요합니다.
+- Kitsune ARP MitM에서 규칙은 마지막 사칭 시점(448.6초)에야 충돌을 잡았습니다. IP-MAC 대응표를
+  처음 본 쌍으로 학습하는 방식이라 사칭이 간헐적이면 늦습니다.
+
+### P5 (eval/, dashboard/)
+
+- `eval/evaluate.py`는 경보의 공격자 MAC이 라벨의 공격자와 다르면 FP로 셉니다. 플러딩류에서
+  가짜 MAC을 공격자로 적은 AI 경보가 전부 FP(362개)로 잡혀서, `infer.py`는 이제 가짜 MAC 경보를
+  `attacker.mac = null`(미지정)로 냅니다. 대시보드에서 AI 경보의 공격자가 비어 있을 수 있습니다.
+- 비교표에 Kitsune 실험을 넣을 때는 **실험망으로만 학습한 모델(`rf_lab.joblib`)**로 추론하세요.
+  Kitsune를 학습에 넣은 모델로 Kitsune를 평가하면 점수가 의미 없습니다.
+
+### Kitsune 데이터 다시 만들기
+
+`data/`와 pcap은 저장소에 없습니다. UCI "Kitsune Network Attack Dataset"에서 `ARP_MitM`,
+`OS_Scan`, `SYN_DoS`의 pcap zip을 받은 뒤(Ubuntu, 저장소 루트):
+
+```bash
+mkdir -p ~/kitsune_work && cd ~/kitsune_work
+unzip ARP_MitM_pcap.pcapng.zip; unzip OS_Scan_pcap.pcapng.zip; unzip SYN_DoS_pcap.pcap.zip
+editcap -r SYN_DoS_pcap.pcap syn_normal.pcap 1-2682349      # 공격 전 정상 구간만
+cd ~/ComputerNetwork01 && export PYTHONPATH=$PWD
+python3 model/kitsune_import.py --kind arp_mitm       --pcap ~/kitsune_work/ARP_MitM_pcap.pcapng
+python3 model/kitsune_import.py --kind os_scan        --pcap ~/kitsune_work/OS_Scan_pcap.pcapng
+python3 model/kitsune_import.py --kind syn_dos_normal --pcap ~/kitsune_work/syn_normal.pcap
+# 출력된 폴더마다 (3개 동시에 돌려도 됨, 각 5~10분)
+python3 capture/extract.py data/runs/<run_id>
+python3 common/records.py check data/runs/<run_id>
+```
+
+`editcap`, `capinfos`는 `sudo apt install wireshark-common`으로 설치합니다.
 
 ## 한계 / 다음 단계
 
