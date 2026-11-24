@@ -52,6 +52,7 @@ sudo python3 env/run.py syn_flood_slow     # 저속 SYN flood(회피) (w11)
 sudo python3 env/run.py mixed_attack       # 정상 트래픽에 섞은 공격(회피) (w12)
 sudo python3 env/run.py mixed_arp_spoof   # 정상 트래픽에 섞은 느린 ARP 스푸핑(회피)
 sudo python3 env/run.py mixed_syn_flood   # 정상 트래픽에 섞은 저속 SYN flood(회피)
+sudo ./integration_test.sh --variants              # 속도·대상·포트 변형 29개 한 번에(VARIANTS)
 sudo python3 env/run.py arp_spoof --no-pcap        # 캡처 생략(빠름)
 sudo python3 env/run.py arp_spoof --controller remote  # OS-Ken 붙일 때(P4)
 
@@ -162,3 +163,21 @@ sudo ./integration_test.sh port_scan syn_flood   # 지정한 시나리오만
   CAM 테이블을 실제로 넘치게 하려면 `tcpreplay`/`sendpfast`로 교체 가능하나,
   *탐지*에는 "짧은 시간 내 다수의 새 MAC"만으로 충분함.
 - 아직 P2(캡처→특징)·P4(규칙) 모듈과 연결 전. pcap은 만들어지므로 오프라인 입력으로 바로 쓸 수 있음.
+
+## 시나리오 변형 (VARIANTS, 29개)
+
+`scenarios.py`의 `_variant()`가 기본 시나리오에서 **속도·대상·포트·방식만** 바꿔 등록합니다.
+공격 모듈과 label의 `attack` 종류는 그대로라서 data-format.md 변경이 없습니다.
+
+| 공격 | 변형 |
+|---|---|
+| arp_spoof | `_mid`, `_fast`, `_gratuitous`, `_broadcast`(피해자 없음), `_h2`, `_h3`, `arp_spoof_slow_h2` |
+| mac_flood | `_slow`(회피), `_mid`, `_fast` |
+| dhcp_starve | `_slow`(회피), `_mid`, `_fast` |
+| dhcp_rogue | `_slow`(OFFER 간격 10초, 회피), `_fast`(1초) |
+| port_scan | `_narrow`(1-100), `_wide`(1-5000), `_h2`, `_h3`, `port_scan_slow_h2` |
+| syn_flood | `_mid`, `_fast`, `_h2`, `_ssh`(22번 포트), `syn_flood_slow_h2` |
+| 섞은 공격 | `mixed_attack_h2`, `mixed_attack_seed2`, `mixed_arp_spoof_h2`, `mixed_syn_flood_h2` |
+
+공격자는 항상 h4입니다(hosts.py의 `attacker` 역할이 정답이므로 바꾸려면 hosts.py와 평가 기준을 함께 고쳐야 합니다).
+
