@@ -23,7 +23,8 @@ if [ "$(id -u)" -ne 0 ]; then
 fi
 
 ALL_SCENARIOS=(arp_spoof arp_spoof_slow mac_flood dhcp_starve dhcp_rogue \
-               port_scan port_scan_slow syn_flood syn_flood_slow mixed_attack)
+               port_scan port_scan_slow syn_flood syn_flood_slow mixed_attack \
+               mixed_arp_spoof mixed_syn_flood)
 
 if [ "${1:-}" = "--all" ]; then
   SCENARIOS=("${ALL_SCENARIOS[@]}")

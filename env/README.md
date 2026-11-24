@@ -50,6 +50,8 @@ sudo python3 env/run.py port_scan_slow     # 느린 포트 스캔(회피) (w11)
 sudo python3 env/run.py syn_flood          # SYN flood (w11)
 sudo python3 env/run.py syn_flood_slow     # 저속 SYN flood(회피) (w11)
 sudo python3 env/run.py mixed_attack       # 정상 트래픽에 섞은 공격(회피) (w12)
+sudo python3 env/run.py mixed_arp_spoof   # 정상 트래픽에 섞은 느린 ARP 스푸핑(회피)
+sudo python3 env/run.py mixed_syn_flood   # 정상 트래픽에 섞은 저속 SYN flood(회피)
 sudo python3 env/run.py arp_spoof --no-pcap        # 캡처 생략(빠름)
 sudo python3 env/run.py arp_spoof --controller remote  # OS-Ken 붙일 때(P4)
 

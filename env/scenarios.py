@@ -114,6 +114,26 @@ SCENARIOS: dict[str, Scenario] = {
         params={"tool": "scapy", "base": "port_scan", "ports": "1-200",
                 "evasion": "blended-with-normal"},
     ),
+    # 정상 트래픽에 섞은 느린 ARP 스푸핑(회피)
+    "mixed_arp_spoof": Scenario(
+        name="mixed_arp_spoof", attack="arp_spoof", attacker="h4", target="h1",
+        module="env.attacks.mixed_attack",
+        args=["--target-ip", "10.0.0.1", "--http-port", "8000",
+              "--base", "arp_spoof", "--seed", "7"],
+        evasive=True, attack_dur=60.0,
+        params={"tool": "scapy", "base": "arp_spoof", "rate_pps": 0.2,
+                "spoofed_ip": GATEWAY_IP, "evasion": "blended-with-normal"},
+    ),
+    # 정상 트래픽에 섞은 저속 SYN flood(회피)
+    "mixed_syn_flood": Scenario(
+        name="mixed_syn_flood", attack="syn_flood", attacker="h4", target="h1",
+        module="env.attacks.mixed_attack",
+        args=["--target-ip", "10.0.0.1", "--http-port", "8000",
+              "--base", "syn_flood", "--seed", "7"],
+        evasive=True, attack_dur=60.0,
+        params={"tool": "scapy", "base": "syn_flood", "rate_pps": 5,
+                "target_port": 80, "evasion": "blended-with-normal"},
+    ),
 }
 
 
