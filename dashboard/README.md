@@ -38,13 +38,26 @@ python3 dashboard/notify.py data/runs/<run_id> --send
 
 ⚠️ 웹훅 URL은 비밀입니다. 저장소·채팅에 올리지 마세요.
 
-## 검증 상태 (2026-11-13)
+## 구성 (12주차 추가)
 
-- ✅ `load.py` / `notify.format_alert`: `tests/test_dashboard.py`로 검증
+| 함수/상수 | 내용 |
+|---|---|
+| `ACTION_FILE` | `"actions.jsonl"` 상수 |
+| `action_rows(run_dir)` | SDN 차단 기록 → 표 행 |
+| `file_sizes(run_dir)` | 경보·행동 파일 크기 → 갱신 감지용 |
+| `is_live(run_dir, threshold=60)` | 최근 N초 내 파일 변경 여부 → 실험 진행 중 판단 |
+
+## 자동 갱신 동작
+
+- 사이드바 **"실시간 자동 갱신"** 체크박스 (기본 ON)
+- 갱신 주기 슬라이더: 2~30초 (기본 5초)
+- 경보·행동 파일 크기를 세션 상태에 보관해 변화 감지 → `🔄 갱신됨` 뱃지
+- 라이브 실험(`is_live`) 감지 시 → `🔴 LIVE` 뱃지, 목록에서 자동 선택
+- `actions.jsonl` (SDN 차단 결과) 별도 테이블로 표시
+
+## 검증 상태 (2026-11-24)
+
+- ✅ `load.py` / `notify.format_alert`: `tests/test_dashboard.py` 16 → 121 전체 통과
+- ✅ `file_sizes`, `is_live`, `action_rows` 단위 테스트 (9개) 추가
 - ✅ `notify.py` 미리보기: 실제 arp_spoof 경보를 디스코드 payload로 변환 확인(전송 안 함)
 - ✅ `app.py`: 전용 venv에서 headless 실행 시 정상 기동(HTTP 200)
-
-## 다음 단계 (12주차)
-
-- 실시간 연결: 파일 꼬리를 읽어(`tail -f` 방식) 경보가 들어오면 바로 표시
-- 트래픽 그래프, 탐지 근거(SHAP) 표시, 차단 해제 버튼

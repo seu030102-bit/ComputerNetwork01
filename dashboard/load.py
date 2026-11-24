@@ -8,6 +8,7 @@ Streamlit에 의존하지 않으므로 그대로 테스트할 수 있습니다.
 from __future__ import annotations
 
 import sys
+import time
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -16,6 +17,8 @@ sys.path.insert(0, str(ROOT))
 from common.records import read  # noqa: E402
 
 ALERT_FILES = ("alerts.jsonl", "alerts_rule.jsonl", "alerts_ai.jsonl")
+ACTION_FILE = "actions.jsonl"
+_LIVE_THRESHOLD = 60.0  # 최근 N초 내 파일 변경 시 "실험 진행 중"으로 판단
 
 
 def _load(run_dir: Path, name: str) -> list:
@@ -80,3 +83,41 @@ def alert_rows(run_dir: Path) -> list[dict]:
             "규칙/모델": a.get("source", ""),
         })
     return rows
+
+
+def action_rows(run_dir: Path) -> list[dict]:
+    """SDN 차단 기록을 표에 바로 쓸 수 있는 행(dict)으로 변환."""
+    rows = []
+    for a in _load(run_dir, ACTION_FILE):
+        tgt = a.get("target") or {}
+        rows.append({
+            "시각": round(a["ts"], 2),
+            "조치": a.get("action", "-"),
+            "대상MAC": tgt.get("mac") or "-",
+            "포트": tgt.get("port"),
+            "경보ID": a.get("alert_id") or "-",
+            "소요(ms)": a.get("install_ms"),
+            "결과": "✅" if a.get("ok") else "❌",
+            "근거": a.get("reason", ""),
+        })
+    return rows
+
+
+def file_sizes(run_dir: Path) -> dict[str, int]:
+    """경보·행동 파일의 현재 크기(바이트). 화면 갱신 필요 여부 판단에 씁니다."""
+    result: dict[str, int] = {}
+    for name in (*ALERT_FILES, ACTION_FILE):
+        f = run_dir / name
+        if f.exists():
+            result[name] = f.stat().st_size
+    return result
+
+
+def is_live(run_dir: Path, threshold: float = _LIVE_THRESHOLD) -> bool:
+    """최근 threshold 초 내에 경보·행동 파일이 변경됐으면 True (실험 진행 중)."""
+    cutoff = time.time() - threshold
+    for name in (*ALERT_FILES, ACTION_FILE):
+        f = run_dir / name
+        if f.exists() and f.stat().st_mtime > cutoff:
+            return True
+    return False

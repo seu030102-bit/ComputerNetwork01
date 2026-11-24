@@ -100,5 +100,93 @@ class TestNotify(unittest.TestCase):
         self.assertEqual(conf, "93%")
 
 
+class TestLive(unittest.TestCase):
+    def test_file_sizes_returns_existing(self):
+        with tempfile.TemporaryDirectory() as t:
+            d = Path(t) / "20260101-000000-arp_spoof"
+            build(d)
+            sizes = load.file_sizes(d)
+            self.assertIn("alerts_rule.jsonl", sizes)
+            self.assertIn("alerts_ai.jsonl", sizes)
+            self.assertIsInstance(sizes["alerts_rule.jsonl"], int)
+            self.assertGreater(sizes["alerts_rule.jsonl"], 0)
+
+    def test_file_sizes_ignores_missing(self):
+        with tempfile.TemporaryDirectory() as t:
+            d = Path(t) / "empty"
+            d.mkdir()
+            self.assertEqual(load.file_sizes(d), {})
+
+    def test_file_sizes_detects_growth(self):
+        with tempfile.TemporaryDirectory() as t:
+            d = Path(t) / "20260101-000000-arp_spoof"
+            build(d)
+            before = load.file_sizes(d)
+            with open(d / "alerts_rule.jsonl", "a", encoding="utf-8") as fh:
+                write(fh, make("alert", ts=T + 50, alert_id="rule-2", detector="rule",
+                               source="arp_conflict", attack="arp_spoof", score=1.0,
+                               attacker=ATK, victim=None, feature_ts=T + 50, win=1,
+                               summary="추가 경보", evidence={}))
+            after = load.file_sizes(d)
+            self.assertGreater(after["alerts_rule.jsonl"], before["alerts_rule.jsonl"])
+
+    def test_is_live_fresh_file(self):
+        with tempfile.TemporaryDirectory() as t:
+            d = Path(t) / "20260101-000000-arp_spoof"
+            build(d)
+            # 방금 만든 파일 → 60초 임계치 내 → True
+            self.assertTrue(load.is_live(d, threshold=60))
+
+    def test_is_live_no_files(self):
+        with tempfile.TemporaryDirectory() as t:
+            d = Path(t) / "empty"
+            d.mkdir()
+            self.assertFalse(load.is_live(d, threshold=60))
+
+    def test_is_live_zero_threshold(self):
+        with tempfile.TemporaryDirectory() as t:
+            d = Path(t) / "20260101-000000-arp_spoof"
+            build(d)
+            # threshold=0 이면 "0초 이내에 수정" → 항상 False
+            self.assertFalse(load.is_live(d, threshold=0))
+
+
+class TestActionRows(unittest.TestCase):
+    def _build_with_action(self, d: Path):
+        build(d)
+        with open(d / "actions.jsonl", "w", encoding="utf-8") as fh:
+            write(fh, make("action", ts=T + 50, action="block",
+                           target=ATK, alert_id="rule-1", reason="arp_spoof탐지",
+                           expires_ts=None, ok=True, install_ms=12.3))
+
+    def test_action_rows_fields(self):
+        with tempfile.TemporaryDirectory() as t:
+            d = Path(t) / "20260101-000000-arp_spoof"
+            self._build_with_action(d)
+            rows = load.action_rows(d)
+            self.assertEqual(len(rows), 1)
+            self.assertEqual(rows[0]["조치"], "block")
+            self.assertEqual(rows[0]["대상MAC"], "00:00:00:00:00:04")
+            self.assertEqual(rows[0]["결과"], "✅")
+            self.assertEqual(rows[0]["경보ID"], "rule-1")
+
+    def test_action_rows_failed(self):
+        with tempfile.TemporaryDirectory() as t:
+            d = Path(t) / "20260101-000000-arp_spoof"
+            build(d)
+            with open(d / "actions.jsonl", "w", encoding="utf-8") as fh:
+                write(fh, make("action", ts=T + 50, action="block",
+                               target=ATK, alert_id=None, reason="실패",
+                               expires_ts=None, ok=False, install_ms=0.0))
+            rows = load.action_rows(d)
+            self.assertEqual(rows[0]["결과"], "❌")
+
+    def test_action_rows_empty(self):
+        with tempfile.TemporaryDirectory() as t:
+            d = Path(t) / "20260101-000000-arp_spoof"
+            build(d)
+            self.assertEqual(load.action_rows(d), [])
+
+
 if __name__ == "__main__":
     unittest.main()
