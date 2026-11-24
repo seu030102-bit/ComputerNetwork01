@@ -5,9 +5,9 @@
 # (있으면) AI 추론 -> 성능 평가 -> 형식 검사까지 한 번에 잇는다.
 #
 # README 12주차 완료 기준: "ARP 스푸핑을 실행하면 대시보드에 경보가 뜨고
-# 공격자가 차단됨". SDN 차단(P4)과 대시보드 실시간 연결(P5)은 아직 main에
-# 없으므로, 이 스크립트는 지금 있는 단계만 자동으로 잇는다. 두 모듈이
-# 머지되면 그대로 이어서 쓸 수 있게 짜 두었다(없으면 건너뜀).
+# 공격자가 차단됨". SDN 차단(P4)은 탐지 후 actions.jsonl 기록까지 이 스크립트가
+# 잇는다(오프라인 action). 대시보드 실시간 연결(P5)과 실험 중 라이브 drop은
+# sdn/README.md 의 라이브 절차를 따른다.
 #
 # 사용법:
 #   sudo ./run_demo.sh [시나리오] [옵션]
@@ -63,8 +63,13 @@ if [ "$CONTROLLER" = "remote" ]; then
     echo "osken-manager 없음. --controller=remote 는 OS-Ken 설치 후 쓰세요." >&2
     exit 1
   fi
+  mkdir -p data/sdn
+  : > /tmp/run_demo_sdn_inbox.jsonl
+  : > /tmp/run_demo_sdn_actions.jsonl
   log "[demo] OS-Ken 컨트롤러 시작 (sdn.l2_switch)"
-  osken-manager sdn.l2_switch >/tmp/run_demo_osken.log 2>&1 &
+  SDN_INBOX=/tmp/run_demo_sdn_inbox.jsonl \
+  SDN_ACTIONS=/tmp/run_demo_sdn_actions.jsonl \
+    osken-manager sdn.l2_switch >/tmp/run_demo_osken.log 2>&1 &
   OSKEN_PID=$!
   sleep 2
   if ! kill -0 "$OSKEN_PID" 2>/dev/null; then
@@ -96,35 +101,49 @@ log "[demo] 실험 폴더: $RUN_DIR"
 log "[demo] 2/6 특징 추출"
 python3 capture/extract.py "$RUN_DIR" || { echo "[demo] 특징 추출 실패" >&2; exit 1; }
 
-log "[demo] 3/6 규칙 탐지"
+log "[demo] 3/7 규칙 탐지"
 python3 rules/detect.py "$RUN_DIR" || { echo "[demo] 규칙 탐지 실패" >&2; exit 1; }
 
 if [ "$RUN_MODEL" -eq 1 ] && [ -f model/rf.joblib ] && [ -f model/infer.py ]; then
-  log "[demo] 4/6 AI 추론"
+  log "[demo] 4/7 AI 추론"
   python3 model/infer.py "$RUN_DIR" || log "[demo] AI 추론 건너뜀(오류, 계속 진행)"
 else
-  log "[demo] 4/6 AI 추론 건너뜀(모델 없음 또는 --no-model)"
+  log "[demo] 4/7 AI 추론 건너뜀(모델 없음 또는 --no-model)"
 fi
 
-log "[demo] 5/6 성능 평가"
+log "[demo] 5/7 SDN 차단 action 기록"
+if [ -f sdn/apply_alerts.py ]; then
+  # 실험 종료 후라 스위치는 보통 끊김 → offline action으로 평가 파이프라인 완결
+  # (실험 중 라이브 drop은 sdn/README.md 절차)
+  python3 sdn/apply_alerts.py "$RUN_DIR" --offline || log "[demo] SDN action 기록 실패(계속)"
+  if [ "$CONTROLLER" = "remote" ]; then
+    python3 sdn/apply_alerts.py "$RUN_DIR" \
+      --inbox /tmp/run_demo_sdn_inbox.jsonl --wait 0.3 2>/dev/null || true
+  fi
+else
+  log "[demo] 5/7 SDN 건너뜀(sdn/apply_alerts.py 없음)"
+fi
+
+log "[demo] 6/7 성능 평가"
 if [ -f eval/report.py ]; then
   python3 eval/report.py "$RUN_DIR" --week demo 2>/dev/null || python3 eval/evaluate.py "$RUN_DIR"
 else
   python3 eval/evaluate.py "$RUN_DIR"
 fi
 
-log "[demo] 6/6 형식 검사"
+log "[demo] 7/7 형식 검사"
 python3 common/records.py check "$RUN_DIR"
 CHECK_RC=$?
 
 echo
 echo "[demo] 완료: $RUN_DIR"
-for f in alerts_rule.jsonl alerts_ai.jsonl; do
+for f in alerts_rule.jsonl alerts_ai.jsonl actions.jsonl; do
   if [ -f "$RUN_DIR/$f" ]; then
     N=$(wc -l < "$RUN_DIR/$f")
-    echo "[demo]   $f: 경보 ${N}개"
+    echo "[demo]   $f: ${N}줄"
   fi
 done
 echo "[demo] 대시보드로 보려면: ~/.venvs/dash/bin/streamlit run dashboard/app.py  ($RUN_DIR 선택)"
+echo "[demo] 라이브 drop 검증: sdn/README.md 참고"
 
 exit "$CHECK_RC"
