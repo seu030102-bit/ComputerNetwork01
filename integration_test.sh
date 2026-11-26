@@ -11,7 +11,8 @@
 #
 # 사용법:
 #   sudo ./integration_test.sh                 # 빠른 확인(2개 시나리오)
-#   sudo ./integration_test.sh --all           # 전체 시나리오
+#   sudo ./integration_test.sh --all           # 기본 시나리오 전체(12개)
+#   sudo ./integration_test.sh --variants      # 속도·대상·포트 변형(env/scenarios.py의 VARIANTS)
 #   sudo ./integration_test.sh arp_spoof mac_flood   # 지정한 시나리오만
 
 set -uo pipefail
@@ -23,10 +24,14 @@ if [ "$(id -u)" -ne 0 ]; then
 fi
 
 ALL_SCENARIOS=(arp_spoof arp_spoof_slow mac_flood dhcp_starve dhcp_rogue \
-               port_scan port_scan_slow syn_flood syn_flood_slow mixed_attack)
+               port_scan port_scan_slow syn_flood syn_flood_slow mixed_attack \
+               mixed_arp_spoof mixed_syn_flood)
 
 if [ "${1:-}" = "--all" ]; then
   SCENARIOS=("${ALL_SCENARIOS[@]}")
+elif [ "${1:-}" = "--variants" ]; then
+  # 변형 목록은 scenarios.py 한 곳에서만 관리한다
+  mapfile -t SCENARIOS < <(PYTHONPATH="$PWD" python3 -c     "from env.scenarios import VARIANTS; print(*VARIANTS, sep=chr(10))")
 elif [ "$#" -ge 1 ]; then
   SCENARIOS=("$@")
 else
