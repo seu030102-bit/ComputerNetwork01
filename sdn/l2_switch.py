@@ -223,7 +223,11 @@ class L2Switch(app_manager.OSKenApp):
                 if size > offset:
                     with open(path, encoding="utf-8") as fh:
                         fh.seek(offset)
-                        for line in fh:
+                        # for line in fh 는 순회 중 tell()이 OSError → readline 사용
+                        while True:
+                            line = fh.readline()
+                            if not line or not line.endswith("\n"):
+                                break  # EOF 또는 아직 덜 쓰인 마지막 줄은 다음 주기에 다시 읽음
                             offset = fh.tell()
                             line = line.strip()
                             if not line:
