@@ -43,7 +43,7 @@ python3 eval/evaluate.py --all
 
 → **11주차 완료 기준 충족**: 캡처 폴더로 규칙 탐지·평가 가능.
 
-## 다음 (12주차)
+## 다음
 
-- 경보 → SDN drop 차단 (`sdn/`)
+- 12주차 SDN 사후 차단: `sdn/` (경보 → drop + `actions.jsonl`) — `sdn/README.md`
 - ★ 사전 차단은 13주차
