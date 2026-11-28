@@ -6,11 +6,66 @@
 ## 사용
 
 ```bash
-# project/ 폴더에서 (WSL)
+# 저장소 루트에서 (WSL)
 python3 capture/extract.py data/runs/<run_id>
 # → features_1s.jsonl, features_5s.jsonl 생성
 python3 common/records.py check data/runs/<run_id>
 ```
+
+## 12주차: 실시간 스트리밍 캡처 → 탐지기 전달
+
+| 파일 | 하는 일 |
+|---|---|
+| `features.py` | 특징 계산(`FeatureAggregator`). **오프라인 `extract.py`와 실시간 `live.py`가 같은 코드**를 씀 |
+| `live.py` | 실험 중 `mon0`에서 바로 캡처 → 창이 끝날 때마다 `features_{1s,5s}.jsonl`에 한 줄씩 추가. `--rules`면 P4 규칙으로 즉시 판정 |
+| `follow.py` | 특징·경보 파일을 `tail -f`처럼 읽는 공용 도구 (P3 AI 등 다른 탐지기용) |
+
+### 실행 (터미널 2~3개, 프로젝트 루트)
+
+```bash
+# (선택) SDN 차단까지: 터미널 0 — sdn/README.md 라이브 절차
+mkdir -p data/sdn && : > data/sdn/inbox.jsonl && : > data/sdn/actions.jsonl
+SDN_INBOX=$PWD/data/sdn/inbox.jsonl SDN_ACTIONS=$PWD/data/sdn/actions.jsonl \
+  PYTHONPATH=$PWD osken-manager sdn.l2_switch
+
+# 터미널 1 — 실시간 캡처 + 규칙 탐지 (실험보다 먼저 띄움)
+sudo PYTHONPATH=$PWD python3 capture/live.py --auto --rules --inbox data/sdn/inbox.jsonl
+#   SDN 없이 경보만 보려면 --inbox 빼기
+
+# 터미널 2 — 실험 (SDN을 쓰면 --controller remote)
+sudo python3 env/run.py arp_spoof --controller remote
+```
+
+- `--auto`: `mon0`이 생기면 그 뒤에 생긴 가장 새 실험 폴더에 붙고, `mon0`이 사라지면(실험 끝) 남은 창을 내보내고 끝남.
+- 경보는 `<실험 폴더>/alerts_rule.jsonl`에 바로 추가되므로 **대시보드(P5)가 실시간으로 표시**합니다.
+- 실시간 경보의 `ts`는 판정을 마친 시각, `feature_ts`는 근거가 된 창이 끝난 시각입니다(data-format 2.4).
+- 특징 기록의 `extra.lag_ms` = 창이 끝난 뒤 파일에 쓰이기까지 걸린 시간.
+- 실험이 끝난 뒤 `extract.py`를 돌리면 pcap 기준으로 특징을 다시 만듭니다(덮어씀). 오프라인 평가는 이 값을 씁니다.
+
+### 다른 탐지기에서 실시간 특징 받기 (P3)
+
+```python
+from capture.follow import follow_many
+for rec in follow_many([run_dir / "features_1s.jsonl", run_dir / "features_5s.jsonl"],
+                       idle_timeout=30):
+    if rec["type"] == "feat_host":
+        ...   # 모델에 넣고, 공격이면 alerts_ai.jsonl 에 write
+```
+
+파일이 아직 없거나, 마지막 줄이 덜 쓰였거나, 파일이 비워져도 알아서 처리합니다.
+
+### 검증 결과 (2026-11-28, WSL Ubuntu 24.04)
+
+| 항목 | 결과 |
+|---|---|
+| 오프라인 결과 그대로인지 | 11주차 21개 실험을 새 `extract.py`로 다시 추출 → 특징 파일 42개 **바이트 단위로 동일** |
+| 실시간 탐지 (공격 시작 → 경보) | arp_spoof 1.0~1.9초, mac_flood 1.9초, syn_flood 2.1초, dhcp_starve 1.9초. 잘못된 경보 0 |
+| 실시간 차단 (공격 시작 → SDN drop 설치) | arp_spoof **2.06초** (`in_port=4, dl_src=…:04 → drop`) |
+| 캡처 누락 | 수신 버퍼 64MB로 커널 drop 0, 늦은 패킷 0. 실시간 패킷 수 ≈ 오프라인(6,327 vs 6,305) |
+| 특징 기록 지연 | 창 끝 후 중앙값 약 350ms (기다림 0.3초 포함), 최대 400ms |
+
+참고: 미러 포트는 스위치가 drop하기 **전** 패킷을 복사하므로, 차단 뒤에도 공격자 패킷이 캡처되고
+같은 경보가 10초마다 다시 납니다. 차단 후 경보를 묶는 처리는 P4/P5에서 정하면 됩니다.
 
 ## 11주차: 데이터 수집·라벨링
 
